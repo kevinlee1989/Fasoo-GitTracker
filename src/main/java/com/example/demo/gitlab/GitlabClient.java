@@ -10,6 +10,9 @@ import com.example.demo.gitlab.dto.GitlabCommitResponse;
 import com.example.demo.gitlab.dto.GitlabMergeRequestResponse;
 import com.example.demo.gitlab.dto.GitlabProjectResponse;
 import com.example.demo.gitlab.dto.GitlabMrDiscussionResponse;
+import com.example.demo.gitlab.dto.GitlabMergeRequestCommitResponse;
+import com.example.demo.gitlab.dto.GitlabPipelineResponse;
+import com.example.demo.gitlab.dto.GitlabJobResponse;
 
 import java.util.List;
 
@@ -60,4 +63,35 @@ public class GitlabClient {
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<GitlabMrDiscussionResponse>>() {});
     }
+
+    public List<GitlabMergeRequestCommitResponse> getMergeRequestCommits(Integer mrIid) {
+        return gitlabRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/projects/{projectId}/merge_requests/{mrIid}/commits")
+                        .queryParam("per_page", 100)
+                        .build(projectId, mrIid))
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<GitlabMergeRequestCommitResponse>>() {});
+    }
+
+    public List<GitlabPipelineResponse> getPipelines() {
+        return gitlabRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/projects/{projectId}/pipelines")
+                        .queryParam("per_page", 100)
+                        .build(projectId))
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<GitlabPipelineResponse>>() {});
+    }
+
+    public List<GitlabJobResponse> getJobs(Long pipelineId) {
+        return gitlabRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/projects/{projectId}/pipelines/{pipelineId}/jobs")
+                        .queryParam("per_page", 100)
+                        .build(projectId, pipelineId))
+                .retrieve()
+                .body(new ParameterizedTypeReference<List<GitlabJobResponse>>() {});
+    }
+
 }

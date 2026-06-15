@@ -8,9 +8,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.gitlab.dto.GitlabCommitResponse;
+import com.example.demo.gitlab.dto.GitlabJobResponse;
 import com.example.demo.gitlab.dto.GitlabMergeRequestCommitResponse;
 import com.example.demo.gitlab.dto.GitlabMergeRequestResponse;
 import com.example.demo.gitlab.dto.GitlabMrDiscussionResponse;
+import com.example.demo.gitlab.dto.GitlabPipelineResponse;
 import com.example.demo.gitlab.dto.GitlabProjectResponse;
 
 import lombok.RequiredArgsConstructor;
@@ -50,5 +52,16 @@ public class GitlabController {
     ) {
         return gitlabClient.getMergeRequestCommits(mrIid);
     }
+
+    @GetMapping("/pipelines")
+    public List<GitlabPipelineResponse> getPipelines() {
+        return gitlabClient.getPipelines();
+    }   
         
+    @GetMapping("/pipelines/{pipelineId}/jobs")
+    public List<GitlabJobResponse> getPipelineJobs(
+            @PathVariable Long pipelineId
+    ) {
+        return gitlabClient.getJobs(pipelineId);
+    }
 }
