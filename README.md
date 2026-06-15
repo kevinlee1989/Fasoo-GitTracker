@@ -1,6 +1,6 @@
 # GitLab Metrics API Project
 
-Spring Boot 기반으로 GitLab API와 연동하여 프로젝트 정보, 커밋, Merge Request, MR Discussion 데이터를 수집하는 백엔드 프로젝트입니다.
+Spring Boot 기반으로 GitLab API와 연동하여 프로젝트 정보, 커밋, Merge Request, MR Discussion, MR별 Commit 데이터를 수집하는 백엔드 프로젝트입니다.
 
 수집한 GitLab 개발 활동 데이터는 향후 **AI 활용 성숙도 분석**, **코드 리뷰 품질 분석**, **커밋/MR 기반 개발 지표 분석**에 활용할 수 있습니다.
 
@@ -32,7 +32,8 @@ src/main/java/com/example/demo
         ├── GitlabProjectResponse.java
         ├── GitlabCommitResponse.java
         ├── GitlabMergeRequestResponse.java
-        └── GitlabMrDiscussionResponse.java
+        ├── GitlabMrDiscussionResponse.java
+        └── GitlabMergeRequestCommitResponse.java
 ```
 
 ---
@@ -66,9 +67,10 @@ GITLAB_TOKEN=glpat-your-token
 | Method | Endpoint                                     | Description                  |
 | ------ | -------------------------------------------- | ---------------------------- |
 | GET    | `/gitlab/project`                            | GitLab 프로젝트 기본 정보 조회         |
-| GET    | `/gitlab/commits`                            | 프로젝트 commit 목록 조회            |
+| GET    | `/gitlab/commits`                            | 프로젝트 전체 commit 목록 조회         |
 | GET    | `/gitlab/merge-requests`                     | 프로젝트 Merge Request 목록 조회     |
 | GET    | `/gitlab/merge-requests/{mrIid}/discussions` | 특정 MR의 댓글, 리뷰 코멘트, 시스템 노트 조회 |
+| GET    | `/gitlab/merge-requests/{mrIid}/commits`     | 특정 MR에 포함된 commit 목록 조회      |
 
 ---
 
@@ -100,6 +102,8 @@ last_activity_at
 GET /gitlab/commits
 ```
 
+프로젝트 전체 commit 목록을 조회합니다.
+
 수집 데이터:
 
 ```text
@@ -116,7 +120,7 @@ web_url
 활용 가능 지표:
 
 ```text
-commit 수
+전체 commit 수
 작성자별 commit 수
 날짜별 commit 수
 commit message 분석
@@ -130,6 +134,8 @@ merge commit 여부
 ```http
 GET /gitlab/merge-requests
 ```
+
+프로젝트의 Merge Request 목록을 조회합니다.
 
 수집 데이터:
 
@@ -168,6 +174,8 @@ PR 생성부터 merge까지 걸린 시간
 GET /gitlab/merge-requests/{mrIid}/discussions
 ```
 
+특정 MR에 달린 discussion, comment, system note를 조회합니다.
+
 수집 데이터:
 
 ```text
@@ -204,16 +212,75 @@ TEST / BUG / REFACTOR 관련 코멘트 분류
 
 ---
 
+### 5. MR별 Commit 조회
+
+```http
+GET /gitlab/merge-requests/{mrIid}/commits
+```
+
+특정 MR에 포함된 commit 목록을 조회합니다.
+
+예시:
+
+```http
+GET /gitlab/merge-requests/2/commits
+```
+
+수집 데이터:
+
+```text
+commit id
+short_id
+title
+message
+author_name
+author_email
+authored_date
+committed_date
+created_at
+web_url
+```
+
+활용 가능 지표:
+
+```text
+MR별 commit 수
+리뷰 이후 추가 commit 수
+리뷰 수정 횟수
+review response count
+```
+
+리뷰 수정 횟수는 다음 방식으로 계산할 수 있습니다.
+
+```text
+리뷰 코멘트 created_at 이후에 발생한 MR commit 수
+= 리뷰 이후 수정 횟수
+```
+
+예시:
+
+```text
+리뷰 코멘트 시간: 2026-06-15 05:13
+MR commit A: 2026-06-15 05:10 → 리뷰 전 commit
+MR commit B: 2026-06-15 05:20 → 리뷰 후 commit
+MR commit C: 2026-06-15 05:25 → 리뷰 후 commit
+
+리뷰 이후 수정 횟수 = 2
+```
+
+---
+
 ## Current Test Result
 
-현재 4개 API 모두 정상 동작을 확인했습니다.
+현재 확인된 API 상태입니다.
 
-| API                                        | Status  |
-| ------------------------------------------ | ------- |
-| `GET /gitlab/project`                      | Success |
-| `GET /gitlab/commits`                      | Success |
-| `GET /gitlab/merge-requests`               | Success |
-| `GET /gitlab/merge-requests/1/discussions` | Success |
+| API                                          | Status        |
+| -------------------------------------------- | ------------- |
+| `GET /gitlab/project`                        | Success       |
+| `GET /gitlab/commits`                        | Success       |
+| `GET /gitlab/merge-requests`                 | Success       |
+| `GET /gitlab/merge-requests/1/discussions`   | Success       |
+| `GET /gitlab/merge-requests/{mrIid}/commits` | Ready to Test |
 
 현재 테스트 데이터 기준:
 
@@ -239,14 +306,15 @@ GitLab system note 수: 3
 
 ## Available Metrics From Current APIs
 
-현재 4개 API만으로 바로 계산 가능한 지표는 다음과 같습니다.
+현재 API들로 계산 가능한 지표는 다음과 같습니다.
 
-| Category       | Metrics                                 |
-| -------------- | --------------------------------------- |
-| Commit         | commit 수, 작성자별 commit 수, 날짜별 commit 수   |
-| Merge Request  | MR 수, MR 상태, PR 생성→Merge 시간             |
-| Review         | 사람 댓글 수, system note 수, 코드 라인 리뷰 수      |
-| Review Quality | TEST / BUG / REFACTOR / PRAISE 등 코멘트 분류 |
+| Category       | Metrics                                  |
+| -------------- | ---------------------------------------- |
+| Commit         | 전체 commit 수, 작성자별 commit 수, 날짜별 commit 수 |
+| Merge Request  | MR 수, MR 상태, PR 생성→Merge 시간              |
+| MR Commit      | MR별 commit 수, 리뷰 이후 추가 commit 수          |
+| Review         | 사람 댓글 수, system note 수, 코드 라인 리뷰 수       |
+| Review Quality | TEST / BUG / REFACTOR / PRAISE 등 코멘트 분류  |
 
 아직 직접 수집하기 어려운 지표:
 
@@ -283,6 +351,7 @@ GET http://localhost:8080/gitlab/project
 GET http://localhost:8080/gitlab/commits
 GET http://localhost:8080/gitlab/merge-requests
 GET http://localhost:8080/gitlab/merge-requests/1/discussions
+GET http://localhost:8080/gitlab/merge-requests/1/commits
 ```
 
 ---
@@ -294,7 +363,7 @@ GET http://localhost:8080/gitlab/merge-requests/1/discussions
 ```text
 1. GitLab 원본 데이터 요약 API 추가
 2. /gitlab/metrics/summary 구현
-3. MR별 commit 조회 API 추가
+3. 리뷰 이후 추가 commit 수 계산 로직 구현
 4. Pipeline API 연동으로 빌드 실패 횟수 수집
 5. JaCoCo/JUnit 리포트 연동으로 테스트 커버리지 및 테스트 개수 수집
 6. MR description 또는 PR template 기반 AI 사용 정보 수집
@@ -316,7 +385,8 @@ GET /gitlab/metrics/summary
   "mergedMergeRequestCount": 1,
   "humanReviewCommentCount": 2,
   "systemNoteCount": 3,
-  "lineReviewCommentCount": 0
+  "lineReviewCommentCount": 0,
+  "reviewAfterCommitCount": 2
 }
 ```
 
@@ -328,11 +398,12 @@ GET /gitlab/metrics/summary
 
 ```text
 1. GitLab 프로젝트 정보
-2. GitLab commit 목록
+2. GitLab 전체 commit 목록
 3. GitLab Merge Request 목록
 4. GitLab MR discussion/comment 목록
+5. GitLab MR별 commit 목록
 ```
 
-현재까지 GitLab 연동, RestClient 설정, DTO 매핑, Controller API 테스트가 완료되었습니다.
+현재까지 GitLab 연동, RestClient 설정, DTO 매핑, Controller API 테스트가 진행되었습니다.
 
-다음 단계는 수집한 데이터를 기반으로 **개발 활동 요약 지표**와 **AI 활용 성숙도 분석 지표**를 계산하는 것입니다.
+다음 단계는 수집한 데이터를 기반으로 **개발 활동 요약 지표**, **리뷰 이후 수정 횟수**, **AI 활용 성숙도 분석 지표**를 계산하는 것입니다.

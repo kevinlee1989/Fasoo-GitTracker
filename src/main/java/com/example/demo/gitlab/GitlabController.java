@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.gitlab.dto.GitlabCommitResponse;
+import com.example.demo.gitlab.dto.GitlabMergeRequestCommitResponse;
 import com.example.demo.gitlab.dto.GitlabMergeRequestResponse;
 import com.example.demo.gitlab.dto.GitlabMrDiscussionResponse;
 import com.example.demo.gitlab.dto.GitlabProjectResponse;
@@ -41,6 +42,13 @@ public class GitlabController {
             @PathVariable Integer mrIid
     ) {
         return gitlabClient.getMergeRequestDiscussions(mrIid);
+    }
+
+    @GetMapping("/merge-requests/{mrIid}/commits")
+    public List<GitlabMergeRequestCommitResponse> getMergeRequestCommits(
+            @PathVariable Integer mrIid
+    ) {
+        return gitlabClient.getMergeRequestCommits(mrIid);
     }
         
 }
