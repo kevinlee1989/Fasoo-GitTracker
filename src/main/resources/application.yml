@@ -1,0 +1,11 @@
+spring:
+  config:
+    import: "optional:file:.env[.properties]"
+
+server:
+  port: 8080
+
+gitlab:
+  base-url: https://gitlab.com/api/v4
+  token: ${GITLAB_TOKEN}
+  project-id: 83345754
