@@ -94,4 +94,12 @@ public class GitlabClient {
                 .body(new ParameterizedTypeReference<List<GitlabJobResponse>>() {});
     }
 
+    public String getJacocoXmlReport(Long jobId){
+        return gitlabRestClient.get()
+            .uri(uriBuilder -> uriBuilder
+                    .path("/projects/{projectId}/jobs/{jobId}/artifacts/build/reports/jacoco/test/jacocoTestReport.xml")
+                    .build(projectId, jobId))
+            .retrieve()
+            .body(String.class);
+        }
 }

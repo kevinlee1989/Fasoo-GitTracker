@@ -27,14 +27,16 @@ public record GitlabMrDiscussionResponse(
             @JsonProperty("updated_at")
             String updatedAt
     ) {
-    }
 
-    public record Author(
+        public record Author(
             Long id,
             String username,
             String name
-    ) {
+        ) {
+        }
     }
+
+    
 
     public record Position(
             @JsonProperty("old_path")

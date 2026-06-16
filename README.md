@@ -95,134 +95,9 @@ GITLAB_TOKEN=glpat-your-token
 
 각 테스트는 실행 전 DB를 초기화하고 샘플 데이터를 재삽입하여 독립적인 환경에서 수행됩니다.
 
-| 테스트 파일                             | 도메인          | 테스트 수 | 검증 내용                                       |
-| ---------------------------------- | ------------ | :---: | ------------------------------------------- |
-| `CreatorApiTest`                   | Creator      |   3   | 목록 조회, 추가 후 조회, 응답 필드 확인                    |
-| `CourseApiTest`                    | Course       |   6   | 제목 수정 성공/실패, 빈 제목 검증, 삭제 성공/실패              |
-| `SaleRecordApiTest`                | Sale         |   3   | 등록 성공, 존재하지 않는 강의 ID, 중복 ID 검증              |
-| `SaleRecordListApiTest`            | Sale         |   5   | 전체 조회, 기간 필터, 기간 외 제외, 응답 필드, 빈 결과          |
-| `SaleRecordListBoundaryTest`       | Sale         |   7   | 시작일·종료일 경계값, from/to 단독 입력 400 처리           |
-| `SaleRecordValidationTest`         | Sale         |   8   | amount/studentId/courseId/paidAt 입력값 검증     |
-| `CancellationRecordApiTest`        | Cancellation |   3   | 등록 성공, 부분 환불, 존재하지 않는 판매 ID                 |
-| `CancellationRecordValidationTest` | Cancellation |   3   | refundAmount/canceledAt/saleRecordId 입력값 검증 |
-| `CancellationRefundRuleTest`       | Cancellation |   4   | 초과 환불 거절, 부분 취소 누적, 전액환불 후 추가 취소            |
-| `SettlementCalculationApiTest`     | Settlement   |   6   | 정산 시나리오, 수수료 계산, 월 경계                       |
-| `SettlementStatusTest`             | Settlement   |   10  | PENDING/CONFIRMED/PAID 전이                   |
-| `SettlementEdgeCaseTest`           | Settlement   |   6   | 순판매 0원, 소수점 버림, 음수 netSales                 |
-| `SettlementSummaryApiTest`         | Settlement   |   8   | 기간별 집계, 크리에이터 단위 합산                         |
-
 ---
 
-## 6. 전체 API 목록
-
-### Creator
-
-| 메서드      | 엔드포인트                   | 설명             |
-| -------- | ----------------------- | -------------- |
-| `POST`   | `/creators`             | 크리에이터 등록       |
-| `GET`    | `/creators`             | 전체 크리에이터 목록 조회 |
-| `DELETE` | `/creators/{creatorId}` | 크리에이터 삭제       |
-
-### Course
-
-| 메서드      | 엔드포인트                       | 설명       |
-| -------- | --------------------------- | -------- |
-| `POST`   | `/courses`                  | 강의 등록    |
-| `PATCH`  | `/courses/{courseId}/title` | 강의 제목 수정 |
-| `DELETE` | `/courses/{courseId}`       | 강의 삭제    |
-
-### SaleRecord
-
-| 메서드    | 엔드포인트                                | 설명       |
-| ------ | ------------------------------------ | -------- |
-| `POST` | `/sale-records`                      | 판매 내역 등록 |
-| `GET`  | `/sale-records?creatorId=&from=&to=` | 판매 내역 조회 |
-
-### CancellationRecord
-
-| 메서드    | 엔드포인트                   | 설명          |
-| ------ | ----------------------- | ----------- |
-| `POST` | `/cancellation-records` | 취소/환불 내역 등록 |
-
-### Settlement
-
-| 메서드     | 엔드포인트                                                | 설명                |
-| ------- | ---------------------------------------------------- | ----------------- |
-| `GET`   | `/settlements/creators/{creatorId}?month=YYYY-MM`    | 크리에이터 월별 정산 조회    |
-| `PATCH` | `/settlements/creators/{creatorId}?month=YYYY-MM`    | 정산 상태 변경          |
-| `GET`   | `/settlements/summary?from=YYYY-MM-DD&to=YYYY-MM-DD` | 운영자용 기간별 전체 정산 집계 |
-
----
-
-## 7. 도메인 구조
-
-```text
-com.example
-├── creator/          크리에이터 등록 및 목록 조회
-├── course/           강의 등록, 제목 수정, 삭제
-├── sale/             판매 내역 등록 및 조회
-├── cancellation/     취소/환불 내역 등록 및 누적 환불 검증
-├── settlement/       월별 정산 계산, 상태 관리, 운영자 집계
-├── gitlab/           GitLab 개발 활동 데이터 수집
-├── common/           GlobalExceptionHandler, ErrorResponse
-└── config/           DataInitializer
-```
-
-### 엔티티 관계
-
-```text
-Creator (1)
-  └── Course (N)              creator_id → creators.id ON DELETE CASCADE
-        └── SaleRecord (N)    course_id → courses.id ON DELETE RESTRICT
-              └── CancellationRecord (N) sale_record_id → sale_records.id ON DELETE RESTRICT
-
-Creator (1)
-  └── Settlement (N)          creator_id → creators.id ON DELETE CASCADE
-```
-
----
-
-## 8. 정산 흐름 및 핵심 로직
-
-### 상태 전이
-
-```text
-PENDING → CONFIRMED → PAID
-```
-
-| 상태          | 설명                          |
-| ----------- | --------------------------- |
-| `PENDING`   | 정산 레코드 없음. GET 요청 시 실시간 집계  |
-| `CONFIRMED` | 운영자가 확정 처리. 금액을 DB에 스냅샷 저장  |
-| `PAID`      | 지급 완료. paidAt 기록 및 추가 전이 차단 |
-
-### 전이 규칙
-
-| 요청                      | 가능 여부 |
-| ----------------------- | ----- |
-| `PENDING → CONFIRMED`   | 가능    |
-| `CONFIRMED → PAID`      | 가능    |
-| `PENDING → PAID`        | 불가    |
-| `CONFIRMED → CONFIRMED` | 불가    |
-| `PAID → 다른 상태`          | 불가    |
-
-### 수수료 계산
-
-```text
-netSales         = totalSales - totalRefunds
-platformFee      = netSales × 20%
-settlementAmount = netSales - platformFee
-```
-
-플랫폼 수수료는 소수점 이하를 버림 처리합니다.
-
-```java
-RoundingMode.DOWN
-```
-
----
-
-## 9. GitLab Metrics API
+## 6. GitLab Metrics API
 
 GitLab API와 연동하여 개발 활동 데이터를 수집합니다.
 
@@ -257,7 +132,7 @@ gitlab
 
 ---
 
-## 10. GitLab 수집 데이터와 활용 지표
+## 7. GitLab 수집 데이터와 활용 지표
 
 ### Project
 
@@ -478,7 +353,7 @@ test 단계는 build 실패로 인해 skipped 상태입니다.
 
 ---
 
-## 11. 현재 GitLab API 테스트 결과
+## 8. 현재 GitLab API 테스트 결과
 
 | API                                              | Status  |
 | ------------------------------------------------ | ------- |
@@ -503,7 +378,7 @@ Pipeline Job 조회 성공
 
 ---
 
-## 12. 현재 API로 계산 가능한 지표
+## 9. 현재 API로 계산 가능한 지표
 
 | 카테고리            | 계산 가능 지표                                 |
 | --------------- | ---------------------------------------- |
@@ -527,7 +402,7 @@ Merge 이후 실제 운영 버그 발생 건수
 
 ---
 
-## 13. 향후 개선 방향
+## 10. 향후 개선 방향
 
 ```text
 1. /gitlab/metrics/summary API 구현
@@ -568,7 +443,7 @@ GET /gitlab/metrics/summary
 
 ---
 
-## 14. 문서
+## 11. 문서
 
 | 문서                           | 내용                         |
 | ---------------------------- | -------------------------- |
@@ -578,7 +453,7 @@ GET /gitlab/metrics/summary
 
 ---
 
-## 15. Summary
+## 12. Summary
 
 본 프로젝트는 두 가지 기능을 포함합니다.
 

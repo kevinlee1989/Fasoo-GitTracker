@@ -14,6 +14,7 @@ import com.example.demo.gitlab.dto.GitlabMergeRequestResponse;
 import com.example.demo.gitlab.dto.GitlabMrDiscussionResponse;
 import com.example.demo.gitlab.dto.GitlabPipelineResponse;
 import com.example.demo.gitlab.dto.GitlabProjectResponse;
+import com.example.demo.gitlab.dto.GitlabCoverageSummaryResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class GitlabController {
 
     private final GitlabClient gitlabClient;
+    private final GitlabCoverageService gitlabCoverageService;
 
     @GetMapping("/project")
     public GitlabProjectResponse getProject() {
@@ -63,5 +65,12 @@ public class GitlabController {
             @PathVariable Long pipelineId
     ) {
         return gitlabClient.getJobs(pipelineId);
+    }
+
+    @GetMapping("/jobs/{jobId}/coverage")
+    public GitlabCoverageSummaryResponse getJobCoverage(
+            @PathVariable Long jobId
+    ) {
+        return gitlabCoverageService.getCoverageSummary(jobId);
     }
 }
