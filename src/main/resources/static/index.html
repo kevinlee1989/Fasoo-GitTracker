@@ -560,7 +560,7 @@ async function loadProject() {
     const d = await fetch('/gitlab/project').then(r => r.json());
     document.getElementById('projectName').textContent = d.name || 'GitLab Dashboard';
     document.getElementById('projectPath').textContent =
-        `${d.pathWithNamespace || ''}  ·  default: ${d.defaultBranch || 'main'}  ·  ${d.visibility || ''}`;
+        `${d.path_with_namespace || ''}  ·  default: ${d.default_branch || 'main'}  ·  ${d.visibility || ''}`;
 }
 
 async function loadCommits() {
@@ -570,27 +570,27 @@ async function loadCommits() {
     document.getElementById('kpiCommits').textContent = commits.length;
     document.getElementById('commitCount').textContent = commits.length;
     if (commits[0]) {
-        document.getElementById('kpiCommitSub').textContent = `최근: ${commits[0].authorName}`;
+        document.getElementById('kpiCommitSub').textContent = `최근: ${commits[0].author_name}`;
     }
 
     // Table (latest 15)
     document.getElementById('commitsBody').innerHTML = commits.slice(0, 15).map(c => `
         <tr>
-            <td><a href="${c.webUrl}" target="_blank" class="hash">${c.shortId}</a></td>
+            <td><a href="${c.web_url}" target="_blank" class="hash">${c.short_id}</a></td>
             <td><span class="truncate" title="${c.title}">${c.title}</span></td>
             <td>
                 <div class="chip">
-                    <div class="avatar">${initial(c.authorName)}</div>
-                    ${c.authorName}
+                    <div class="avatar">${initial(c.author_name)}</div>
+                    ${c.author_name}
                 </div>
             </td>
-            <td><span class="muted">${timeAgo(c.committedDate)}</span></td>
+            <td><span class="muted">${timeAgo(c.committed_date)}</span></td>
         </tr>
     `).join('');
 
     // Author chart (top 5)
     const freq = {};
-    commits.forEach(c => { freq[c.authorName] = (freq[c.authorName] || 0) + 1; });
+    commits.forEach(c => { freq[c.author_name] = (freq[c.author_name] || 0) + 1; });
     const top5 = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
     if (chartAuthor) chartAuthor.destroy();
@@ -672,7 +672,7 @@ async function loadMergeRequests() {
     // Full MR table
     document.getElementById('mrBody').innerHTML = mrs.map(mr => `
         <tr>
-            <td><a href="${mr.webUrl}" target="_blank">#${mr.iid}</a></td>
+            <td><a href="${mr.web_url}" target="_blank">#${mr.iid}</a></td>
             <td>${mrBadge(mr.state)}</td>
             <td><span class="truncate" title="${mr.title}">${mr.title}</span></td>
             <td>
@@ -681,10 +681,10 @@ async function loadMergeRequests() {
                     ${mr.author?.name || '—'}
                 </div>
             </td>
-            <td><span class="branch">${mr.sourceBranch}</span></td>
-            <td><span class="branch">${mr.targetBranch}</span></td>
-            <td><span class="muted">${mr.changesCount ?? '—'}</span></td>
-            <td><span class="muted">${timeAgo(mr.createdAt)}</span></td>
+            <td><span class="branch">${mr.source_branch}</span></td>
+            <td><span class="branch">${mr.target_branch}</span></td>
+            <td><span class="muted">${mr.changes_count ?? '—'}</span></td>
+            <td><span class="muted">${timeAgo(mr.created_at)}</span></td>
         </tr>
     `).join('');
 
@@ -708,10 +708,10 @@ async function loadPipelines() {
             <div class="pipeline-ref">${p.ref}</div>
             <div class="pipeline-meta">
                 <div class="pipeline-sha">${(p.sha || '').slice(0, 8)}</div>
-                <div class="pipeline-time">${timeAgo(p.createdAt)}</div>
+                <div class="pipeline-time">${timeAgo(p.created_at)}</div>
             </div>
             ${pipelineBadge(p.status)}
-            <a href="${p.webUrl}" target="_blank" style="color:var(--text-3); font-size:16px;">↗</a>
+            <a href="${p.web_url}" target="_blank" style="color:var(--text-3); font-size:16px;">↗</a>
         </div>
     `).join('');
 
@@ -736,7 +736,7 @@ async function loadCoverage(pipelines) {
             if (!covRes.ok) continue;
 
             const cov = await covRes.json();
-            const lineRate = cov.line?.coverageRate ?? 0;
+            const lineRate = cov.line?.coverage_rate ?? 0;
 
             badge.textContent = `LINE ${lineRate}%`;
             badge.style.display = '';
@@ -746,7 +746,7 @@ async function loadCoverage(pipelines) {
                 { key: 'branch',      label: '브랜치 (Branch)' },
                 { key: 'method',      label: '메서드 (Method)' },
                 { key: 'instruction', label: '명령어 (Instruction)' },
-                { key: 'clazz',       label: '클래스 (Class)' },
+                { key: 'class',       label: '클래스 (Class)' },
             ];
 
             el.innerHTML = `
@@ -756,7 +756,7 @@ async function loadCoverage(pipelines) {
                 ${types.map(t => {
                     const item = cov[t.key];
                     if (!item) return '';
-                    const r = item.coverageRate ?? 0;
+                    const r = item.coverage_rate ?? 0;
                     const color = coverageColor(r);
                     return `
                         <div class="cov-item">
