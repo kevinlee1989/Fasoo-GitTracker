@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitLab Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-0: #07090f;
+            --bg-1: #0f172a;
+            --bg-2: #1e293b;
+            --bg-3: #273449;
+            --border: #2d3f55;
+            --border-hover: #4a6080;
+            --text-1: #f1f5f9;
+            --text-2: #94a3b8;
+            --text-3: #64748b;
+            --accent: #6366f1;
+            --accent-lit: #818cf8;
+            --accent-dim: rgba(99,102,241,0.15);
+            --green: #22c55e;
+            --yellow: #f59e0b;
+            --red: #ef4444;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --green-dim: rgba(34,197,94,0.12);
+            --yellow-dim: rgba(245,158,11,0.12);
+            --red-dim: rgba(239,68,68,0.12);
+            --blue-dim: rgba(59,130,246,0.12);
+            --purple-dim: rgba(168,85,247,0.12);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg-1);
+            color: var(--text-1);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+            min-height: 100vh;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* ── Loading ── */
+        #loadingOverlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(7, 9, 15, 0.85);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            backdrop-filter: blur(4px);
+        }
+        #loadingOverlay.active { display: flex; }
+        .spinner {
+            width: 44px; height: 44px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Header ── */
+        .header {
+            background: linear-gradient(180deg, var(--bg-2) 0%, var(--bg-1) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 14px; }
+        .logo {
+            width: 38px; height: 38px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; flex-shrink: 0;
+        }
+        .header-title h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+        .header-title p { font-size: 12px; color: var(--text-3); margin-top: 1px; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .last-updated { font-size: 12px; color: var(--text-3); }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: 8px; border: none;
+            font-size: 13px; font-weight: 500; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-primary {
+            background: var(--accent); color: #fff;
+        }
+        .btn-primary:hover { background: var(--accent-lit); transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary.loading { opacity: 0.6; pointer-events: none; }
+
+        /* ── Main ── */
+        .main {
+            padding: 28px 32px 48px;
+            max-width: 1560px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            transition: border-color 0.2s;
+        }
+        .card:hover { border-color: var(--border-hover); }
+        .card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 18px;
+        }
+        .card-title {
+            font-size: 12px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--text-3);
+        }
+
+        /* ── Badge ── */
+        .badge {
+            display: inline-flex; align-items: center;
+            padding: 3px 9px; border-radius: 20px;
+            font-size: 11px; font-weight: 600;
+        }
+        .badge-accent  { background: var(--accent-dim);  color: var(--accent-lit); border: 1px solid rgba(99,102,241,0.25); }
+        .badge-green   { background: var(--green-dim);   color: var(--green);       border: 1px solid rgba(34,197,94,0.25); }
+        .badge-yellow  { background: var(--yellow-dim);  color: var(--yellow);      border: 1px solid rgba(245,158,11,0.25); }
+        .badge-red     { background: var(--red-dim);     color: var(--red);         border: 1px solid rgba(239,68,68,0.25); }
+        .badge-blue    { background: var(--blue-dim);    color: var(--blue);        border: 1px solid rgba(59,130,246,0.25); }
+        .badge-purple  { background: var(--purple-dim);  color: var(--purple);      border: 1px solid rgba(168,85,247,0.25); }
+        .badge-gray    { background: rgba(100,116,139,0.12); color: var(--text-2); border: 1px solid rgba(100,116,139,0.2); }
+
+        /* ── KPI Grid ── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        .kpi {
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px 22px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .kpi:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+        .kpi::after {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: var(--kpi-color, var(--accent));
+            border-radius: 14px 14px 0 0;
+        }
+        .kpi-icon { font-size: 22px; margin-bottom: 14px; }
+        .kpi-value {
+            font-size: 38px; font-weight: 800;
+            letter-spacing: -2px; line-height: 1;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, var(--text-1) 40%, var(--text-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .kpi-label { font-size: 13px; color: var(--text-2); font-weight: 500; margin-bottom: 6px; }
+        .kpi-sub { font-size: 11px; color: var(--text-3); }
+        .kpi.color-accent { --kpi-color: var(--accent); }
+        .kpi.color-blue   { --kpi-color: var(--blue); }
+        .kpi.color-green  { --kpi-color: var(--green); }
+        .kpi.color-yellow { --kpi-color: var(--yellow); }
+
+        /* ── Grid layouts ── */
+        .row-2col {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 16px;
+        }
+        .row-2col-eq {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .col-stack { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ── Table ── */
+        .tbl-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+            text-align: left;
+            padding: 9px 12px;
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            color: var(--text-3);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        tbody tr {
+            border-bottom: 1px solid rgba(45,63,85,0.6);
+            transition: background 0.12s;
+        }
+        tbody tr:hover { background: rgba(99,102,241,0.04); }
+        tbody tr:last-child { border-bottom: none; }
+        td {
+            padding: 10px 12px;
+            font-size: 13px;
+            color: var(--text-1);
+            vertical-align: middle;
+        }
+
+        /* ── Commit hash ── */
+        .hash {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 11px;
+            background: var(--accent-dim);
+            color: var(--accent-lit);
+            padding: 2px 7px; border-radius: 5px;
+            border: 1px solid rgba(99,102,241,0.2);
+        }
+
+        /* ── Chip ── */
+        .chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 8px; border-radius: 20px;
+            background: var(--bg-3);
+            font-size: 12px; white-space: nowrap;
+        }
+        .avatar {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 9px; font-weight: 700; flex-shrink: 0;
+        }
+
+        /* ── Branch tag ── */
+        .branch {
+            font-family: monospace; font-size: 11px;
+            background: var(--bg-3);
+            padding: 2px 6px; border-radius: 4px;
+            color: var(--text-2); white-space: nowrap;
+        }
+
+        /* ── Truncate ── */
+        .truncate {
+            max-width: 260px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* ── Muted text ── */
+        .muted { color: var(--text-3); font-size: 12px; }
+
+        /* ── Link ── */
+        a { color: var(--accent-lit); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* ── Pipeline rows ── */
+        .pipeline-list { display: flex; flex-direction: column; gap: 8px; }
+        .pipeline-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px;
+            background: var(--bg-1);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            transition: border-color 0.15s;
+        }
+        .pipeline-row:hover { border-color: var(--border-hover); }
+        .status-dot {
+            width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+        }
+        .dot-success { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .dot-failed  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+        .dot-running { background: var(--blue);  box-shadow: 0 0 6px var(--blue); animation: blink 1s ease-in-out infinite; }
+        .dot-pending { background: var(--yellow); }
+        .dot-canceled, .dot-created { background: var(--text-3); }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        .pipeline-ref {
+            font-family: monospace; font-size: 12px;
+            color: var(--text-2); min-width: 90px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .pipeline-meta { flex: 1; min-width: 0; }
+        .pipeline-sha { font-family: monospace; font-size: 11px; color: var(--accent-lit); }
+        .pipeline-time { font-size: 11px; color: var(--text-3); }
+
+        /* ── Coverage ── */
+        .cov-item { margin-bottom: 18px; }
+        .cov-item:last-child { margin-bottom: 0; }
+        .cov-header {
+            display: flex; justify-content: space-between;
+            margin-bottom: 6px; font-size: 13px;
+        }
+        .cov-label { color: var(--text-2); font-weight: 500; }
+        .cov-pct { font-weight: 700; }
+        .cov-bar-bg {
+            background: var(--bg-1);
+            border-radius: 4px; height: 7px; overflow: hidden;
+        }
+        .cov-bar-fill {
+            height: 100%; border-radius: 4px;
+            transition: width 1s cubic-bezier(0.4,0,0.2,1);
+        }
+        .cov-detail { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+        /* ── Chart container ── */
+        .chart-wrap { position: relative; }
+
+        /* ── Empty ── */
+        .empty {
+            text-align: center; padding: 40px 20px;
+            color: var(--text-3);
+        }
+        .empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+        /* ── Responsive ── */
+        @media (max-width: 1200px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .row-2col { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .main { padding: 16px; }
+            .header { padding: 0 16px; }
+            .kpi-grid { grid-template-columns: 1fr 1fr; }
+            .row-2col-eq { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <p style="color:var(--text-2);font-size:13px;">GitLab 데이터를 불러오는 중…</p>
+</div>
+
+<!-- Header -->
+<header class="header">
+    <div class="header-left">
+        <div class="logo">🦊</div>
+        <div class="header-title">
+            <h1 id="projectName">GitLab Dashboard</h1>
+            <p id="projectPath">프로젝트 정보 로딩 중…</p>
+        </div>
+    </div>
+    <div class="header-right">
+        <span class="last-updated" id="lastUpdated"></span>
+        <button class="btn btn-primary" id="refreshBtn" onclick="loadAll()">
+            <span id="refreshIcon">↻</span> 새로고침
+        </button>
+    </div>
+</header>
+
+<main class="main">
+
+    <!-- KPI cards -->
+    <div class="kpi-grid">
+        <div class="kpi color-accent">
+            <div class="kpi-icon">📝</div>
+            <div class="kpi-value" id="kpiCommits">—</div>
+            <div class="kpi-label">총 커밋 수</div>
+            <div class="kpi-sub" id="kpiCommitSub">—</div>
+        </div>
+        <div class="kpi color-blue">
+            <div class="kpi-icon">🔀</div>
+            <div class="kpi-value" id="kpiOpenMR">—</div>
+            <div class="kpi-label">오픈 MR</div>
+            <div class="kpi-sub" id="kpiOpenMRSub">—</div>
+        </div>
+        <div class="kpi color-green">
+            <div class="kpi-icon">✅</div>
+            <div class="kpi-value" id="kpiMergedMR">—</div>
+            <div class="kpi-label">병합된 MR</div>
+            <div class="kpi-sub" id="kpiMergedMRSub">—</div>
+        </div>
+        <div class="kpi color-yellow">
+            <div class="kpi-icon">⚙️</div>
+            <div class="kpi-value" id="kpiPipelineRate">—</div>
+            <div class="kpi-label">파이프라인 성공률</div>
+            <div class="kpi-sub" id="kpiPipelineSub">—</div>
+        </div>
+    </div>
+
+    <!-- Row 1: Recent Commits + MR Donut + Author Bar -->
+    <div class="row-2col">
+        <!-- Commits table -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">📝 최근 커밋</span>
+                <span class="badge badge-accent" id="commitCount">0</span>
+            </div>
+            <div class="tbl-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>해시</th>
+                            <th>메시지</th>
+                            <th>작성자</th>
+                            <th>날짜</th>
+                        </tr>
+                    </thead>
+                    <tbody id="commitsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="col-stack">
+            <!-- MR donut -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">🔀 MR 상태 분포</span>
+                </div>
+                <div class="chart-wrap" style="height:220px;">
+                    <canvas id="mrDonut"></canvas>
+                </div>
+            </div>
+            <!-- Author bar -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">👤 커밋 작성자 TOP 5</span>
+                </div>
+                <div class="chart-wrap" style="height:180px;">
+                    <canvas id="authorBar"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Pipelines + Coverage -->
+    <div class="row-2col-eq">
+        <!-- Pipelines -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">⚙️ 최근 파이프라인</span>
+                <span class="badge badge-gray" id="pipelineCount">0</span>
+            </div>
+            <div class="pipeline-list" id="pipelineList"></div>
+        </div>
+
+        <!-- Coverage -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">🧪 코드 커버리지 (JaCoCo)</span>
+                <span class="badge badge-green" id="coverageBadge" style="display:none;"></span>
+            </div>
+            <div id="coverageContent">
+                <div class="empty">
+                    <div class="empty-icon">🔍</div>
+                    <p>커버리지 분석 중…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 3: Full MR table -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">🔀 전체 Merge Request</span>
+            <span class="badge badge-purple" id="mrTotalCount">0</span>
+        </div>
+        <div class="tbl-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>상태</th>
+                        <th>제목</th>
+                        <th>작성자</th>
+                        <th>소스 브랜치</th>
+                        <th>대상 브랜치</th>
+                        <th>변경</th>
+                        <th>생성일</th>
+                    </tr>
+                </thead>
+                <tbody id="mrBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<script>
+// ──────────────────────────────────
+// Helpers
+// ──────────────────────────────────
+function timeAgo(iso) {
+    if (!iso) return '—';
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    const h = Math.floor(m / 60);
+    const d = Math.floor(h / 24);
+    if (d > 30) return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    if (d > 0) return `${d}일 전`;
+    if (h > 0) return `${h}시간 전`;
+    if (m > 0) return `${m}분 전`;
+    return '방금 전';
+}
+
+function initial(name) { return name ? name.charAt(0).toUpperCase() : '?'; }
+
+function mrBadge(state) {
+    const m = { opened: ['badge-blue','오픈'], merged: ['badge-purple','병합'], closed: ['badge-red','닫힘'] };
+    const [cls, label] = m[state] || ['badge-gray', state];
+    return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function pipelineDot(status) {
+    const m = {
+        success: 'dot-success', failed: 'dot-failed',
+        running: 'dot-running', pending: 'dot-pending',
+        canceled: 'dot-canceled', created: 'dot-created',
+    };
+    return m[status] || 'dot-canceled';
+}
+
+function pipelineBadge(status) {
+    const m = {
+        success:  ['badge-green',  '성공'],
+        failed:   ['badge-red',    '실패'],
+        running:  ['badge-blue',   '실행 중'],
+        pending:  ['badge-yellow', '대기'],
+        canceled: ['badge-gray',   '취소'],
+        created:  ['badge-gray',   '생성됨'],
+    };
+    const [cls, label] = m[status] || ['badge-gray', status];
+    return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function coverageColor(rate) {
+    if (rate >= 80) return 'var(--green)';
+    if (rate >= 50) return 'var(--yellow)';
+    return 'var(--red)';
+}
+
+// ──────────────────────────────────
+// Chart instances (keep refs for destroy on refresh)
+// ──────────────────────────────────
+let chartMR = null, chartAuthor = null;
+
+// ──────────────────────────────────
+// Loaders
+// ──────────────────────────────────
+async function loadProject() {
+    const d = await fetch('/gitlab/project').then(r => r.json());
+    document.getElementById('projectName').textContent = d.name || 'GitLab Dashboard';
+    document.getElementById('projectPath').textContent =
+        `${d.pathWithNamespace || ''}  ·  default: ${d.defaultBranch || 'main'}  ·  ${d.visibility || ''}`;
+}
+
+async function loadCommits() {
+    const commits = await fetch('/gitlab/commits').then(r => r.json());
+
+    // KPI
+    document.getElementById('kpiCommits').textContent = commits.length;
+    document.getElementById('commitCount').textContent = commits.length;
+    if (commits[0]) {
+        document.getElementById('kpiCommitSub').textContent = `최근: ${commits[0].authorName}`;
+    }
+
+    // Table (latest 15)
+    document.getElementById('commitsBody').innerHTML = commits.slice(0, 15).map(c => `
+        <tr>
+            <td><a href="${c.webUrl}" target="_blank" class="hash">${c.shortId}</a></td>
+            <td><span class="truncate" title="${c.title}">${c.title}</span></td>
+            <td>
+                <div class="chip">
+                    <div class="avatar">${initial(c.authorName)}</div>
+                    ${c.authorName}
+                </div>
+            </td>
+            <td><span class="muted">${timeAgo(c.committedDate)}</span></td>
+        </tr>
+    `).join('');
+
+    // Author chart (top 5)
+    const freq = {};
+    commits.forEach(c => { freq[c.authorName] = (freq[c.authorName] || 0) + 1; });
+    const top5 = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    if (chartAuthor) chartAuthor.destroy();
+    const ctx = document.getElementById('authorBar').getContext('2d');
+    chartAuthor = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: top5.map(e => e[0]),
+            datasets: [{
+                data: top5.map(e => e[1]),
+                backgroundColor: ['#6366f1','#a855f7','#3b82f6','#22c55e','#f59e0b'],
+                borderRadius: 6,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true, ticks: { color:'#64748b', stepSize:1 },
+                    grid: { color:'rgba(45,63,85,0.6)' },
+                },
+                x: { ticks: { color:'#64748b', maxRotation: 15 }, grid: { display: false } }
+            }
+        }
+    });
+
+    return commits;
+}
+
+async function loadMergeRequests() {
+    const mrs = await fetch('/gitlab/merge-requests').then(r => r.json());
+
+    const open   = mrs.filter(m => m.state === 'opened').length;
+    const merged = mrs.filter(m => m.state === 'merged').length;
+    const closed = mrs.filter(m => m.state === 'closed').length;
+
+    document.getElementById('kpiOpenMR').textContent = open;
+    document.getElementById('kpiOpenMRSub').textContent = `전체 ${mrs.length}개 MR`;
+    document.getElementById('kpiMergedMR').textContent = merged;
+    document.getElementById('kpiMergedMRSub').textContent = `닫힌 MR: ${closed}개`;
+    document.getElementById('mrTotalCount').textContent = mrs.length;
+
+    // Donut chart
+    if (chartMR) chartMR.destroy();
+    const ctx = document.getElementById('mrDonut').getContext('2d');
+    chartMR = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['오픈', '병합됨', '닫힘'],
+            datasets: [{
+                data: [open, merged, closed],
+                backgroundColor: ['rgba(59,130,246,0.85)', 'rgba(168,85,247,0.85)', 'rgba(239,68,68,0.85)'],
+                borderColor: '#1e293b',
+                borderWidth: 3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color:'#94a3b8', padding:16, font:{ size:12 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: c => {
+                            const pct = mrs.length ? Math.round(c.raw / mrs.length * 100) : 0;
+                            return ` ${c.label}: ${c.raw}개 (${pct}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '68%',
+        }
+    });
+
+    // Full MR table
+    document.getElementById('mrBody').innerHTML = mrs.map(mr => `
+        <tr>
+            <td><a href="${mr.webUrl}" target="_blank">#${mr.iid}</a></td>
+            <td>${mrBadge(mr.state)}</td>
+            <td><span class="truncate" title="${mr.title}">${mr.title}</span></td>
+            <td>
+                <div class="chip">
+                    <div class="avatar">${initial(mr.author?.name)}</div>
+                    ${mr.author?.name || '—'}
+                </div>
+            </td>
+            <td><span class="branch">${mr.sourceBranch}</span></td>
+            <td><span class="branch">${mr.targetBranch}</span></td>
+            <td><span class="muted">${mr.changesCount ?? '—'}</span></td>
+            <td><span class="muted">${timeAgo(mr.createdAt)}</span></td>
+        </tr>
+    `).join('');
+
+    return mrs;
+}
+
+async function loadPipelines() {
+    const pipelines = await fetch('/gitlab/pipelines').then(r => r.json());
+
+    document.getElementById('pipelineCount').textContent = pipelines.length;
+
+    const success = pipelines.filter(p => p.status === 'success').length;
+    const rate = pipelines.length ? Math.round(success / pipelines.length * 100) : 0;
+    document.getElementById('kpiPipelineRate').textContent = `${rate}%`;
+    document.getElementById('kpiPipelineSub').textContent = `${pipelines.length}개 중 ${success}개 성공`;
+
+    // Pipeline list (top 12)
+    document.getElementById('pipelineList').innerHTML = pipelines.slice(0, 12).map(p => `
+        <div class="pipeline-row">
+            <div class="status-dot ${pipelineDot(p.status)}"></div>
+            <div class="pipeline-ref">${p.ref}</div>
+            <div class="pipeline-meta">
+                <div class="pipeline-sha">${(p.sha || '').slice(0, 8)}</div>
+                <div class="pipeline-time">${timeAgo(p.createdAt)}</div>
+            </div>
+            ${pipelineBadge(p.status)}
+            <a href="${p.webUrl}" target="_blank" style="color:var(--text-3); font-size:16px;">↗</a>
+        </div>
+    `).join('');
+
+    return pipelines;
+}
+
+async function loadCoverage(pipelines) {
+    const el = document.getElementById('coverageContent');
+    const badge = document.getElementById('coverageBadge');
+
+    for (const pipeline of pipelines.slice(0, 5)) {
+        try {
+            const jobs = await fetch(`/gitlab/pipelines/${pipeline.id}/jobs`).then(r => r.json());
+
+            const testJob = jobs.find(j =>
+                (j.stage === 'test' || j.name.toLowerCase().includes('test') || j.name.toLowerCase().includes('cover'))
+                && j.status === 'success'
+            );
+            if (!testJob) continue;
+
+            const covRes = await fetch(`/gitlab/jobs/${testJob.id}/coverage`);
+            if (!covRes.ok) continue;
+
+            const cov = await covRes.json();
+            const lineRate = cov.line?.coverageRate ?? 0;
+
+            badge.textContent = `LINE ${lineRate}%`;
+            badge.style.display = '';
+
+            const types = [
+                { key: 'line',        label: '라인 (Line)' },
+                { key: 'branch',      label: '브랜치 (Branch)' },
+                { key: 'method',      label: '메서드 (Method)' },
+                { key: 'instruction', label: '명령어 (Instruction)' },
+                { key: 'clazz',       label: '클래스 (Class)' },
+            ];
+
+            el.innerHTML = `
+                <p class="muted" style="margin-bottom:16px;">
+                    Pipeline #${pipeline.iid} · Job: <strong style="color:var(--text-2)">${testJob.name}</strong>
+                </p>
+                ${types.map(t => {
+                    const item = cov[t.key];
+                    if (!item) return '';
+                    const r = item.coverageRate ?? 0;
+                    const color = coverageColor(r);
+                    return `
+                        <div class="cov-item">
+                            <div class="cov-header">
+                                <span class="cov-label">${t.label}</span>
+                                <span class="cov-pct" style="color:${color}">${r}%</span>
+                            </div>
+                            <div class="cov-bar-bg">
+                                <div class="cov-bar-fill" style="width:0%;background:${color};"
+                                     data-target="${r}"></div>
+                            </div>
+                            <div class="cov-detail">${item.covered} / ${item.total} covered · missed ${item.missed}</div>
+                        </div>
+                    `;
+                }).join('')}
+            `;
+
+            // Animate bars
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.cov-bar-fill').forEach(bar => {
+                    bar.style.width = bar.dataset.target + '%';
+                });
+            });
+
+            return;
+        } catch {
+            continue;
+        }
+    }
+
+    el.innerHTML = `
+        <div class="empty">
+            <div class="empty-icon">📭</div>
+            <p>커버리지 데이터 없음</p>
+            <p class="muted" style="margin-top:8px;">JaCoCo 리포트가 포함된 성공한 test Job이 필요합니다.</p>
+        </div>
+    `;
+}
+
+// ──────────────────────────────────
+// Main
+// ──────────────────────────────────
+async function loadAll() {
+    const overlay  = document.getElementById('loadingOverlay');
+    const btn      = document.getElementById('refreshBtn');
+    const icon     = document.getElementById('refreshIcon');
+
+    overlay.classList.add('active');
+    btn.classList.add('loading');
+    icon.style.animation = 'spin 0.7s linear infinite';
+
+    try {
+        await loadProject();
+
+        const [, , pipelines] = await Promise.all([
+            loadCommits(),
+            loadMergeRequests(),
+            loadPipelines(),
+        ]);
+
+        await loadCoverage(pipelines);
+
+        document.getElementById('lastUpdated').textContent =
+            `업데이트: ${new Date().toLocaleTimeString('ko-KR')}`;
+
+    } catch (err) {
+        console.error(err);
+        const msg = err.message.includes('fetch')
+            ? '백엔드 서버(port 8080)에 연결할 수 없습니다.'
+            : err.message;
+        alert(`데이터 로딩 오류\n\n${msg}`);
+    } finally {
+        overlay.classList.remove('active');
+        btn.classList.remove('loading');
+        icon.style.animation = '';
+    }
+}
+
+loadAll();
+</script>
+</body>
+</html>
